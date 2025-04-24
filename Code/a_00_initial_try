@@ -1,0 +1,71 @@
+### a_00_initial_try
+
+#This is the code that I ran to visualize one NO2 file on 4/24/2025
+#Packages
+install.packages(c("leaflet", "raster", "ncdf4", "viridis", "sf"))
+library(ncdf4)
+install.packages("raster")
+library(raster)
+install.packages("leaflet")
+library(leaflet)
+install.packages("viridis")
+library(viridis)  # prettier colormap
+install.packages("sf")
+library(sf)
+
+
+#Read in data
+nc <- nc_open("March 2, day/TEMPO_NO2_L3_V03_20250302T145059Z_S005.nc")
+no2 <- ncvar_get(nc, "product/vertical_column_troposphere")
+lat <- ncvar_get(nc, "latitude")
+lon <- ncvar_get(nc, "longitude")
+nc_close(nc)
+
+## Transpose if needed: leaflet expects [rows=lat, cols=lon]
+no2 <- t(no2)
+
+# Create raster
+r <- raster(no2)
+extent(r) <- extent(min(lon), max(lon), min(lat), max(lat))
+crs(r) <- CRS("+proj=longlat +datum=WGS84")
+
+#Bounding box to LA
+la_bbox <- extent(-119, -117, 33.5, 34.5)
+r_la <- crop(r, la_bbox)
+
+#visualize with leaflet
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%  # or providers$Esri.WorldTopoMap
+  addRasterImage(r_la, colors = viridis(256), opacity = 0.8) %>%
+  addLegend(pal = colorNumeric(viridis(256), values(r_la), na.color = "transparent"),
+            values = values(r_la),
+            title = "NO₂ Concentration",
+            position = "bottomright")
+
+##I struggled with getting all of the packages to run to get the osm data to load
+#The httr2 package caused me the most amount of issues because I had to download rtools2
+#Might be worthwhile getting a shapefile of highways and major roads in LA instead.
+#HIGHWAY DATA 
+#add highway
+install.packages("osmdata")
+library(osmdata)
+osmdata:osmdata_sf()
+install.packages("sf")
+library(sf)
+install.packages("httr2", type = "source")
+library(httr2)
+
+
+la_highways <- opq(bbox = c(-119, 33.5, -117, 34.5)) %>%
+  add_osm_feature(key = "highway") %>%
+  osmdata_sf()
+
+# Add to map
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addRasterImage(r_la, colors = viridis(256), opacity = 0.8) %>%
+  addPolylines(data = la_highways$osm_lines, color = "red", weight = 1) %>%
+  addLegend(pal = colorNumeric(viridis(256), values(r_la), na.color = "transparent"),
+            values = values(r_la),
+            title = "NO₂ Concentration",
+            position = "bottomright")
