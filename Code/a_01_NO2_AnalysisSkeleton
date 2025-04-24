@@ -1,0 +1,70 @@
+### a_01_NO2_AnalysisSkeleton.R
+
+# 📦 Load required packages
+packages <- c("ncdf4", "raster", "leaflet", "viridis", "sf")
+lapply(packages, function(pkg) {
+  if (!require(pkg, character.only = TRUE)) install.packages(pkg)
+  library(pkg, character.only = TRUE)
+})
+
+# Set working directory
+setwd("U:/Your/Path/To/NO2Data")  # UPDATE with your own folder
+
+# Define helper function to process one .nc file
+  process_no2_file <- function(nc_file_path) {
+  # Open file
+  nc <- nc_open(nc_file_path)
+  
+  # Extract variable and coordinates
+  no2 <- ncvar_get(nc, "product/vertical_column_troposphere")
+  lat <- ncvar_get(nc, "latitude")
+  lon <- ncvar_get(nc, "longitude")
+  nc_close(nc)
+
+  # Transpose if necessary
+  no2 <- t(no2)
+
+  # Create raster
+  r <- raster(no2)
+  extent(r) <- extent(min(lon), max(lon), min(lat), max(lat))
+  crs(r) <- CRS("+proj=longlat +datum=WGS84")
+
+  # Crop to LA
+  la_bbox <- extent(-119, -117, 33.5, 34.5)
+  crop(r, la_bbox)
+}
+
+# Get list of all .nc files (March 2–8, 14 per day)
+file_list <- list.files(path = ".", pattern = "\\.nc$", recursive = TRUE, full.names = TRUE)
+
+# Visualize one file (e.g., the 1st hour of March 2)
+r_la <- process_no2_file(file_list[1])
+pal <- colorNumeric(viridis(256), values(r_la), na.color = "transparent")
+
+leaflet() %>%
+  addProviderTiles(providers$Esri.WorldTopoMap) %>%
+  addRasterImage(r_la, colors = pal, opacity = 0.8) %>%
+  addLegend(pal = pal, values = values(r_la), title = "NO₂ (mol/m²)", position = "bottomright")
+
+
+
+###THIS IS AFTER WE HAVE READ IN ALL OF OUR DATA
+# Optional: Compute summary stats (e.g., average NO₂ in LA for each file)
+summary_table <- data.frame(
+  file = basename(file_list),
+  mean_no2 = NA,
+  max_no2 = NA
+)
+
+for (i in seq_along(file_list)) {
+  r <- process_no2_file(file_list[i])
+  summary_table$mean_no2[i] <- mean(values(r), na.rm = TRUE)
+  summary_table$max_no2[i] <- max(values(r), na.rm = TRUE)
+}
+
+# 📄 View stats
+print(summary_table)
+
+# 📊 You could also write to CSV:
+# write.csv(summary_table, "NO2_summary_March2_8.csv", row.names = FALSE)
+
