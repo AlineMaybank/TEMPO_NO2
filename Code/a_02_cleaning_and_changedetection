@@ -1,0 +1,227 @@
+---
+title: "change_detection"
+output: html_document
+---
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggspatial)
+library(ggmap)
+```
+loading datasets
+```{r}
+setwd("/Volumes/LaCie/tempo_hourly_csv")
+
+# for weekend 7am-9am
+sun_7am <- read.csv("tempo_3_2_0700.csv")
+sun_8am <- read.csv("tempo_3_2_0800.csv")
+sun_9am <- read.csv("tempo_3_2_0900.csv")
+sat_7am <- read.csv("tempo_3_8_0700.csv")
+sat_8am <- read.csv("tempo_3_8_0800.csv")
+sat_9am <- read.csv("tempo_3_8_0900.csv")
+
+# for weekend 10am-12pm
+sun_10am <- read.csv("tempo_3_2_1000.csv")
+sun_11am <- read.csv("tempo_3_2_1100.csv")
+sun_12pm <- read.csv("tempo_3_2_1200.csv")
+sat_10am <- read.csv("tempo_3_8_1000.csv")
+sat_11am <- read.csv("tempo_3_8_1100.csv")
+sat_12pm <- read.csv("tempo_3_8_1200.csv")
+
+# for weekend 1pm-4pm
+sun_1pm <- read.csv("tempo_3_2_1300.csv")
+sun_2pm <- read.csv("tempo_3_2_1400.csv")
+sun_3pm <- read.csv("tempo_3_2_1500.csv")
+sun_4pm <- read.csv("tempo_3_2_1600.csv")
+sat_1pm <- read.csv("tempo_3_8_1300.csv")
+sat_2pm <- read.csv("tempo_3_8_1400.csv")
+sat_3pm <- read.csv("tempo_3_8_1500.csv")
+sat_4pm <- read.csv("tempo_3_8_1600.csv")
+
+# for weekday 7am-9am
+mon_7am <- read.csv("tempo_3_3_0700.csv")
+mon_8am <- read.csv("tempo_3_3_0800.csv")
+mon_9am <- read.csv("tempo_3_3_0900.csv")
+thurs_7am <- read.csv("tempo_3_6_0700.csv")
+thurs_8am <- read.csv("tempo_3_6_0800.csv")
+thurs_9am <- read.csv("tempo_3_6_0900.csv")
+fri_7am <- read.csv("tempo_3_7_0700.csv")
+fri_8am <- read.csv("tempo_3_7_0800.csv")
+fri_9am <- read.csv("tempo_3_7_0900.csv")
+
+# for weekday 10am-12pm
+mon_10am <- read.csv("tempo_3_3_1000.csv")
+mon_11am <- read.csv("tempo_3_3_1100.csv")
+mon_12pm <- read.csv("tempo_3_3_1200.csv")
+thurs_10am <- read.csv("tempo_3_6_1000.csv")
+thurs_11am <- read.csv("tempo_3_6_1100.csv")
+thurs_12pm <- read.csv("tempo_3_6_1200.csv")
+fri_10am <- read.csv("tempo_3_7_1000.csv")
+fri_11am <- read.csv("tempo_3_7_1100.csv")
+fri_12pm <- read.csv("tempo_3_7_1200.csv")
+
+# for weekday 1pm-4pm
+mon_1pm <- read.csv("tempo_3_3_1300.csv")
+mon_2pm <- read.csv("tempo_3_3_1400.csv")
+mon_3pm <- read.csv("tempo_3_3_1500.csv")
+mon_4pm <- read.csv("tempo_3_3_1600.csv")
+thurs_1pm <- read.csv("tempo_3_6_1300.csv")
+thurs_2pm <- read.csv("tempo_3_6_1400.csv")
+thurs_3pm <- read.csv("tempo_3_6_1500.csv")
+thurs_4pm <- read.csv("tempo_3_6_1600.csv")
+fri_1pm <- read.csv("tempo_3_7_1300.csv")
+fri_2pm <- read.csv("tempo_3_7_1400.csv")
+fri_3pm <- read.csv("tempo_3_7_1500.csv")
+fri_4pm <- read.csv("tempo_3_7_1600.csv")
+```
+
+
+inner joining data part 1
+```{r}
+weekend_7am_9am <- inner_join(sun_7am, sun_8am, by = c("lon", "lat"))
+weekend_7am_9am <- inner_join(weekend_7am_9am, sun_9am, by = c("lon", "lat"))
+weekend_7am_9am <- inner_join(weekend_7am_9am, sat_7am, by = c("lon", "lat"))
+weekend_7am_9am <- inner_join(weekend_7am_9am, sat_8am, by = c("lon", "lat"))
+weekend_7am_9am <- inner_join(weekend_7am_9am, sat_9am, by = c("lon", "lat"))
+
+
+weekend_10am_12pm <- inner_join(sun_10am, sun_11am, by = c("lon", "lat"))
+weekend_10am_12pm <- inner_join(weekend_10am_12pm, sun_12pm, by = c("lon", "lat"))
+weekend_10am_12pm <- inner_join(weekend_10am_12pm, sat_10am, by = c("lon", "lat"))
+weekend_10am_12pm <- inner_join(weekend_10am_12pm, sat_11am, by = c("lon", "lat"))
+weekend_10am_12pm <- inner_join(weekend_10am_12pm, sat_12pm, by = c("lon", "lat"))
+  
+
+weekend_1pm_4pm <- inner_join(sun_1pm, sun_2pm, by = c("lon", "lat"))
+weekend_1pm_4pm <- inner_join(weekend_1pm_4pm, sun_3pm, by = c("lon", "lat"))
+weekend_1pm_4pm <- inner_join(weekend_1pm_4pm, sun_4pm, by = c("lon", "lat"))
+weekend_1pm_4pm <- inner_join(weekend_1pm_4pm, sat_1pm, by = c("lon", "lat"))
+weekend_1pm_4pm <- inner_join(weekend_1pm_4pm, sat_2pm, by = c("lon", "lat"))
+weekend_1pm_4pm <- inner_join(weekend_1pm_4pm, sat_3pm, by = c("lon", "lat"))
+weekend_1pm_4pm <- inner_join(weekend_1pm_4pm, sat_4pm, by = c("lon", "lat"))
+```
+
+```{r}
+weekday_7am_9am <- inner_join(mon_7am, mon_8am, by = c("lon", "lat"))
+weekday_7am_9am <- inner_join(weekday_7am_9am, mon_9am, by = c("lon", "lat"))
+weekday_7am_9am <- inner_join(weekday_7am_9am, thurs_7am, by = c("lon", "lat"))
+weekday_7am_9am <- inner_join(weekday_7am_9am, thurs_8am, by = c("lon", "lat"))
+weekday_7am_9am <- inner_join(weekday_7am_9am, thurs_9am, by = c("lon", "lat"))
+weekday_7am_9am <- inner_join(weekday_7am_9am, fri_7am, by = c("lon", "lat"))
+weekday_7am_9am <- inner_join(weekday_7am_9am, fri_8am, by = c("lon", "lat"))
+weekday_7am_9am <- inner_join(weekday_7am_9am, fri_9am, by = c("lon", "lat"))
+
+weekday_10am_12pm <- inner_join(mon_10am, mon_11am, by = c("lon", "lat"))
+weekday_10am_12pm <- inner_join(weekday_10am_12pm, mon_12pm, by = c("lon", "lat"))
+weekday_10am_12pm <- inner_join(weekday_10am_12pm, thurs_10am, by = c("lon", "lat"))
+weekday_10am_12pm <- inner_join(weekday_10am_12pm, thurs_11am, by = c("lon", "lat"))
+weekday_10am_12pm <- inner_join(weekday_10am_12pm, thurs_12pm, by = c("lon", "lat"))
+weekday_10am_12pm <- inner_join(weekday_10am_12pm, fri_10am, by = c("lon", "lat"))
+weekday_10am_12pm <- inner_join(weekday_10am_12pm, fri_11am, by = c("lon", "lat"))
+weekday_10am_12pm <- inner_join(weekday_10am_12pm, fri_12pm, by = c("lon", "lat"))
+
+weekday_1pm_4pm <- inner_join(mon_1pm, mon_2pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, mon_3pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, mon_4pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, thurs_1pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, thurs_2pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, thurs_3pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, thurs_4pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, fri_1pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, fri_2pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, fri_3pm, by = c("lon", "lat"))
+weekday_1pm_4pm <- inner_join(weekday_1pm_4pm, fri_4pm, by = c("lon", "lat"))
+```
+
+compacting joined data by taking means
+```{r}
+weekend_7am_9am$mean_no2 <- rowMeans(weekend_7am_9am[, c("no2.x", "no2.y", "no2.x.x", "no2.y.y", "no2.x.x.x", "no2.y.y.y")])
+weekend_10am_12pm$mean_no2 <- rowMeans(weekend_10am_12pm[, c("no2.x", "no2.y", "no2.x.x", "no2.y.y", "no2.x.x.x", "no2.y.y.y")])
+weekend_1pm_4pm$mean_no2 <- rowMeans(weekend_1pm_4pm[, c("no2.x", "no2.y", "no2.x.x", "no2.y.y", "no2.x.x.x", "no2.y.y.y")])
+
+weekday_7am_9am$mean_no2 <- rowMeans(weekday_7am_9am[, c("no2.x", "no2.y", "no2.x.x", "no2.y.y", "no2.x.x.x", "no2.y.y.y", "no2.x.x.x.x", "no2.y.y.y.y")])
+weekday_10am_12pm$mean_no2 <- rowMeans(weekday_10am_12pm[, c("no2.x", "no2.y", "no2.x.x", "no2.y.y", "no2.x.x.x", "no2.y.y.y", "no2.x.x.x.x", "no2.y.y.y.y")])
+weekday_1pm_4pm$mean_no2 <- rowMeans(weekday_1pm_4pm[, c("no2.x", "no2.y", "no2.x.x", "no2.y.y", "no2.x.x.x", "no2.y.y.y", "no2.x.x.x.x", "no2.y.y.y.y")])
+
+weekend_7am_9am <-  weekend_7am_9am %>% dplyr::select(lon, lat, mean_no2)
+weekend_10am_12pm <- weekend_10am_12pm %>% dplyr::select(lon, lat, mean_no2)
+weekend_1pm_4pm <- weekend_1pm_4pm %>% dplyr::select(lon, lat, mean_no2)
+
+weekday_7am_9am <- weekday_7am_9am %>% dplyr::select(lon, lat, mean_no2)
+weekday_10am_12pm <- weekday_10am_12pm %>% dplyr::select(lon, lat, mean_no2)
+weekday_1pm_4pm <- weekday_1pm_4pm %>% dplyr::select(lon, lat, mean_no2)
+```
+
+
+
+inner joining data part 2
+```{r}
+weekend_morning_to_noon <- inner_join(weekend_7am_9am, weekend_10am_12pm, by = c("lon", "lat"))
+weekend_morning_to_noon <- weekend_morning_to_noon %>% dplyr::mutate(delta = mean_no2.y-mean_no2.x)
+weekend_morning_to_noon <- weekend_morning_to_noon %>%
+  mutate(delta_cat = case_when(
+    delta >= 1e13 ~ "Positive",
+    delta < 1e13  & delta > -1e13 ~"Neutral",
+    delta <= -1e13 ~ "Negative"
+  ))
+
+weekend_noon_to_after <- inner_join(weekend_10am_12pm, weekend_1pm_4pm, by = c("lon", "lat"))
+weekend_noon_to_after <- weekend_noon_to_after %>% dplyr::mutate(delta = mean_no2.y-mean_no2.x)
+weekend_noon_to_after <- weekend_noon_to_after %>%
+  mutate(delta_cat = case_when(
+    delta >= 1e13 ~ "Positive",
+    delta < 1e13  & delta > -1e13 ~"Neutral",
+    delta <= -1e13 ~ "Negative"
+  ))
+  
+weekday_morning_to_noon <- inner_join(weekday_7am_9am, weekday_10am_12pm, by = c("lon", "lat"))
+weekday_morning_to_noon <- weekday_morning_to_noon %>% dplyr::mutate(delta = mean_no2.y-mean_no2.x)
+weekday_morning_to_noon <- weekday_morning_to_noon %>%
+  mutate(delta_cat = case_when(
+    delta >= 1e13 ~ "Positive",
+    delta < 1e13  & delta > -1e13 ~"Neutral",
+    delta <= -1e13 ~ "Negative"
+  ))
+
+weekday_noon_to_after <- inner_join(weekday_10am_12pm, weekday_1pm_4pm, by = c("lon", "lat"))
+weekday_noon_to_after <- weekday_noon_to_after %>% dplyr::mutate(delta = mean_no2.y-mean_no2.x)
+weekday_noon_to_after <- weekday_noon_to_after %>%
+  mutate(delta_cat = case_when(
+    delta >= 1e13 ~ "Positive",
+    delta < 1e13  & delta > -1e13 ~"Neutral",
+    delta <= -1e13 ~ "Negative"
+  ))
+```
+
+
+
+plotting
+```{r}
+# Plot with manual color scale
+p <- ggplot(weekend_noon_to_after, aes(x = lon, y = lat, fill = delta_cat)) +
+  geom_raster(alpha = 0.6) +
+  coord_fixed() +
+  scale_fill_manual(values = c("Positive" = "red", "Neutral" = "yellow", "Negative" = "green")) +
+  theme_minimal() +
+  theme(
+    axis.title = element_blank(),       # removes axis titles
+    axis.text = element_blank(),        # removes axis text (tick labels)
+    axis.ticks = element_blank(),       # removes axis ticks
+    plot.title = element_blank(),       # removes plot title
+    legend.title = element_blank(),     # removes legend title
+    legend.text = element_blank(),
+    panel.grid = element_blank(),       # removes legend labels
+    legend.position = "none"            # optionally removes the whole legend
+  )
+
+
+ggsave("weekend_noon_to_after.png", plot = p, width = 6, height = 4, dpi = 300, bg = "transparent")
+
+```
+
+
+
+
+
+
+
