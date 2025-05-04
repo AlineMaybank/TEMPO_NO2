@@ -1,0 +1,313 @@
+#a_0X_NO2_hourly
+
+#Packages
+library(dplyr)
+library(readr)
+library(stringr)
+library(lubridate)
+library(ggplot2)
+library(sf)
+library(osmdata)
+library(leaflet)
+library(dplyr)
+library(RColorBrewer)
+library(viridisLite)
+library(osmdata)
+install.packages("gganimate")
+library(gganimate)
+library(viridis)
+
+#Review working directory
+setwd("/Users/alinemaybank/Desktop/NO2_OEFS/NO2 Data")
+getwd()
+#"/Users/alinemaybank/Desktop/NO2_OEFS/NO2 Data"
+
+#Read in all of the cleaned csv files
+# Get list of all CSV files in the working directory
+csv_files <- list.files(pattern = "\\.csv$")
+
+# Read and combine all CSV files into one dataframe
+# Function to read and tag each file
+read_with_time <- function(file) {
+  # Extract timestamp from filename, e.g., tempo_3_2_1400.csv → 3_2_1400
+  parts <- str_match(file, "tempo_(\\d+)_(\\d+)_(\\d+)\\.csv")
+  month <- as.integer(parts[2])
+  day <- as.integer(parts[3])
+  hour <- as.integer(substr(parts[4], 1, 2))  # e.g., 1400 → 14
+  
+  # Construct datetime (assume 2025 for now)
+  datetime <- ymd_h(paste0("2025-", month, "-", day, " ", hour))
+  
+  # Read the file and attach the datetime column
+  read_csv(file) %>%
+    mutate(datetime = datetime)
+}
+
+# Read and combine
+no2_data <- lapply(csv_files, read_with_time) %>%
+  bind_rows()
+
+# Check result
+glimpse(no2_data)
+
+### -----------------------
+# DIURNAL ANALYSIS:
+### -----------------------
+#Filter for weekdays
+#March 2, 5,6,7, and 8
+# Add weekday column
+no2_data <- no2_data %>%
+  mutate(date = as.Date(datetime),
+         hour = hour(datetime),
+         weekday = weekdays(date))
+
+# Filter for weekdays only (excluding weekends)
+valid_days <- as.Date(c("2025-03-02", "2025-03-05", "2025-03-06", "2025-03-07", "2025-03-08"))
+no2_weekdays <- no2_data %>%
+  filter(date %in% valid_days)
+
+#Summary statistics
+ggplot(no2_weekdays, aes(x = factor(hour), y = no2)) +
+  geom_boxplot(outlier.size = 0.5, fill = "steelblue", color = "darkblue") +
+  labs(
+    title = "Hourly NO₂ Levels Across Weekdays",
+    x = "Hour of Day",
+    y = expression(NO[2]~(molecules/cm^2))
+  ) +
+  coord_cartesian(ylim = c(0, NA)) +  # Remove negative values from view
+  theme_minimal()
+
+#Smoother lines
+no2_summary <- no2_weekdays %>%
+  group_by(hour) %>%
+  summarize(median_no2 = median(no2, na.rm = TRUE))
+
+ggplot(no2_summary, aes(x = hour, y = median_no2)) +
+  geom_line(color = "firebrick", size = 1.2) +
+  geom_point(size = 2) +
+  labs(
+    title = "Median Hourly NO2 Levels (Weekdays)",
+    x = "Hour of Day",
+    y = expression(Median~NO[2]~(molecules/cm^2))
+  ) +
+  theme_minimal()
+
+#Time-Series of weekdAY NO2 levels across the hours
+# Summarize NO₂ by hour and date (average across all locations)
+no2_timeseries <- no2_weekdays %>%
+  group_by(date, hour) %>%
+  summarize(mean_no2 = mean(no2, na.rm = TRUE)) %>%
+  ungroup()
+
+# Plot: Each line is a different day
+no2_timeseries$weekday <- weekdays(no2_timeseries$date)
+
+ggplot(no2_timeseries, aes(x = hour, y = mean_no2, color = factor(date))) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(
+    title = "Hourly NO2 Time Series by Weekday",
+    x = "Hour of Day",
+    y = expression(Mean~NO[2]~(molecules/cm^2)),
+    color = "Date"
+  ) +
+  theme_minimal()
+
+
+#Exclude March 8th
+# Filter for weekdays only (excluding March 2 and 8)
+no2_weekdays_filtered <- no2_data %>%
+  filter(date %in% as.Date(c("2025-03-05", "2025-03-02", "2025-03-06", "2025-03-07"))) %>%
+  mutate(hour = hour(datetime))
+
+# Summarize mean NO₂ per hour per day
+no2_timeseries <- no2_weekdays_filtered %>%
+  group_by(date, hour) %>%
+  summarize(mean_no2 = mean(no2, na.rm = TRUE)) %>%
+  ungroup()
+
+# Plot time series
+ggplot(no2_timeseries, aes(x = hour, y = mean_no2, color = factor(date))) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(
+    title = "Hourly NO2 Time Series (Weekdays Only)",
+    x = "Hour of Day",
+    y = expression(Mean~NO[2]~(molecules/cm^2)),
+    color = "Date"
+  ) +
+  theme_minimal()
+
+### -------------------------
+# - SPATIAL MAPPING
+### -------------------------
+# Calculate mean NO₂ per location (lon, lat) per hour
+no2_hourly_avg <- no2_data %>%
+  filter(date %in% as.Date(c("2025-03-05", "2025-03-02", "2025-03-06", "2025-03-07"))) %>%
+  mutate(hour = hour(datetime)) %>%
+  group_by(lon, lat, hour) %>%
+  summarize(mean_no2 = mean(no2, na.rm = TRUE)) %>%
+  ungroup()
+
+# Clean your hourly NO₂ data by removing negative values
+no2_hourly_avg_clean <- no2_hourly_avg %>%
+  filter(mean_no2 >= 0, mean_no2 <= 5e15)  # optional upper bound
+
+# Convert to sf
+no2_sf_clean <- st_as_sf(no2_hourly_avg_clean, coords = c("lon", "lat"), crs = 4326)
+
+
+#Get major roads from OpenStreetMap
+# Calculate bounding box from your NO₂ data
+bbox_coords <- no2_data %>%
+  summarize(
+    min_lon = min(lon, na.rm = TRUE),
+    max_lon = max(lon, na.rm = TRUE),
+    min_lat = min(lat, na.rm = TRUE),
+    max_lat = max(lat, na.rm = TRUE)
+  )
+
+# Create matrix in the format needed for osmdata
+la_bbox_matrix <- matrix(c(
+  bbox_coords$min_lon, bbox_coords$min_lat,
+  bbox_coords$max_lon, bbox_coords$max_lat
+), ncol = 2, byrow = TRUE,
+dimnames = list(c("x", "y"), c("min", "max")))
+
+print(la_bbox_matrix)
+#        min      max
+#x -118.9863 33.51339
+#y -117.0066 34.49305
+
+# Query OpenStreetMap for highways in LA
+# Expand to full LA County using a broader bounding box
+# Correct bounding box vector: xmin, ymin, xmax, ymax
+la_bbox_vec <- c(-118.9863, 33.51339, -117.0066, 34.49305)
+
+# Query OSM highways using the fixed bbox
+la_highways <- opq(bbox = la_bbox_vec) %>%
+  add_osm_feature(key = "highway", value = c("motorway", "primary", "secondary")) %>%
+  osmdata_sf()
+
+# Extract road geometries
+la_roads <- la_highways$osm_lines
+
+#Map NO2 Levels for a Specific Hour
+#Hour 7 (high)
+# Filter to a specific hour (e.g., 7 AM)
+# Filter and clean for 7 AM
+hour_map <- no2_data %>%
+  filter(hour(datetime) == 7,
+         date %in% as.Date(c("2025-03-05", "2025-03-06", "2025-03-07"))) %>%
+  group_by(lon, lat) %>%
+  summarize(mean_no2 = mean(no2, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(mean_no2 >= 0, mean_no2 <= 5e15)  # Clean: remove negatives & outliers
+
+
+# Create color palette (reversed so purple = high NO₂)
+pal <- colorNumeric(
+  palette = rev(viridis(10, option = "magma")),  # dark purple = high
+  domain = hour_map$mean_no2,
+  na.color = "transparent"
+)
+
+
+# Make interactive map
+leaflet(hour_map) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    lng = ~lon, lat = ~lat,
+    radius = 4,
+    fillColor = ~pal(mean_no2),
+    fillOpacity = 0.8,
+    stroke = FALSE,
+    popup = ~paste0("NO₂: ", format(mean_no2, scientific = TRUE), " molecules/cm²")
+  ) %>%
+  addPolylines(
+    data = la_roads,
+    color = "black",
+    weight = 1,
+    opacity = 0.6
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = pal,
+    values = ~mean_no2,
+    title = "Mean NO₂ (molecules/cm²)",
+    labFormat = function(type, cuts) {
+      formatC(cuts, format = "e", digits = 2)
+    }
+  )
+
+#Hour 12 (low)
+# Filter to a specific hour (e.g., 12 AM)
+# Filter and clean for 12 PM
+hour_map <- no2_data %>%
+  filter(hour(datetime) == 12,
+         date %in% as.Date(c("2025-03-05", "2025-03-06", "2025-03-07"))) %>%
+  group_by(lon, lat) %>%
+  summarize(mean_no2 = mean(no2, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(mean_no2 >= 0, mean_no2 <= 5e15)  # Clean
+
+
+# Make interactive map
+leaflet(hour_map) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    lng = ~lon, lat = ~lat,
+    radius = 4,
+    fillColor = ~pal(mean_no2),
+    fillOpacity = 0.8,
+    stroke = FALSE,
+    popup = ~paste0("NO₂: ", format(mean_no2, scientific = TRUE), " molecules/cm²")
+  ) %>%
+  addPolylines(
+    data = la_roads,
+    color = "black",
+    weight = 1,
+    opacity = 0.6
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = pal,
+    values = ~mean_no2,
+    title = "Mean NO₂ (molecules/cm²)",
+    labFormat = function(type, cuts) {
+      formatC(cuts, format = "e", digits = 2)
+    }
+  )
+
+
+#Hotspot detection
+hotspots <- no2_hourly_avg %>%
+  group_by(lon, lat) %>%
+  summarize(overall_mean = mean(mean_no2, na.rm = TRUE)) %>%
+  filter(overall_mean > quantile(overall_mean, 0.95))
+
+
+###
+# - Hospot Detection
+###
+hotspots <- no2_hourly_avg %>%
+  group_by(lon, lat) %>%
+  summarize(overall_mean = mean(mean_no2, na.rm = TRUE)) %>%
+  filter(overall_mean > quantile(overall_mean, 0.95))
+
+hotspots_sf <- st_as_sf(hotspots, coords = c("lon", "lat"), crs = 4326)
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(
+    data = hotspots_sf,
+    radius = 6,
+    color = "red",
+    fillOpacity = 1,
+    label = ~paste0("Hotspot NO₂: ", format(overall_mean, scientific = TRUE))
+  ) %>%
+  addPolylines(data = la_roads, color = "black", weight = 1, opacity = 0.5)
+
+
+filter(overall_mean > quantile(overall_mean, 0.95))
+
